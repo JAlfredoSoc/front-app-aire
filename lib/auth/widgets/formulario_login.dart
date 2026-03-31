@@ -83,7 +83,12 @@ class FormularioLogin extends StatelessWidget {
 
                 const SizedBox(height: 20),
 
-                BotonPrincipal(texto: 'Iniciar sesión', onPressed: () {}),
+                BotonPrincipal(
+                  texto: 'Iniciar sesión',
+                  onPressed: () {
+                    Navigator.pushReplacementNamed(context, AppRutas.inicio);
+                  },
+                ),
 
                 const SizedBox(height: 10),
 

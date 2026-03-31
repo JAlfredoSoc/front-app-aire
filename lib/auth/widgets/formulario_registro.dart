@@ -89,7 +89,16 @@ class FormularioRegistro extends StatelessWidget {
                   esPassword: true,
                 ),
                 const SizedBox(height: 22),
-                BotonPrincipal(texto: 'Registrarse', onPressed: () {}),
+                BotonPrincipal(
+                  texto: 'Registrarse',
+                  onPressed: () {
+                    Navigator.pushNamedAndRemoveUntil(
+                      context,
+                      AppRutas.inicio,
+                      (route) => false,
+                    );
+                  },
+                ),
                 const SizedBox(height: 10),
                 Center(
                   child: TextButton(
