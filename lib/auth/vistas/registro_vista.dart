@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../widgets/formulario_registro.dart';
 
 class RegistroVista extends StatelessWidget {
   const RegistroVista({super.key});
@@ -6,9 +7,22 @@ class RegistroVista extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Registro")),
-      body: const Center(
-        child: Text("Pantalla de Registro"),
+      backgroundColor: const Color(0xFF0F2027),
+      body: SizedBox.expand(
+        child: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color(0xFF0F2027),
+                Color(0xFF203A43),
+                Color(0xFF2C5364),
+              ],
+            ),
+          ),
+          child: const SafeArea(child: FormularioRegistro()),
+        ),
       ),
     );
   }
