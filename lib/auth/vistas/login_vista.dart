@@ -7,19 +7,17 @@ class LoginVista extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        width: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              Color(0xFF0F2027),
-              Color(0xFF203A43),
-              Color(0xFF2C5364),
-            ],
+      backgroundColor: const Color(0xFF0F2027),
+      body: SizedBox.expand(
+        child: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF0F2027), Color(0xFF203A43), Color(0xFF2C5364)],
+            ),
           ),
-        ),
-        child: const SafeArea(
-          child: FormularioLogin(),
+          child: const SafeArea(child: FormularioLogin()),
         ),
       ),
     );
