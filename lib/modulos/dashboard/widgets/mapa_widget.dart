@@ -1,18 +1,29 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
-// ignore: unused_import
 import 'package:latlong2/latlong.dart';
 
-import 'heatmap_widget.dart';
+import '../../../modelos/sensor.dart';
 
+/// Widget del mapa. Muestra puntos donde el sensor físico tomó mediciones.
+/// Al tocar un punto se notifica al padre vía [onSensorTap] — sin navegación.
 class MapaWidget extends StatefulWidget {
-  const MapaWidget({super.key});
+  final List<Sensor> sensores;
+  final Sensor? sensorSeleccionado;
+  final ValueChanged<Sensor> onSensorTap;
+
+  const MapaWidget({
+    super.key,
+    required this.sensores,
+    required this.sensorSeleccionado,
+    required this.onSensorTap,
+  });
 
   @override
   State<MapaWidget> createState() => _MapaWidgetState();
 }
 
 class _MapaWidgetState extends State<MapaWidget> {
+  static const _centro = LatLng(10.46314, -73.25322);
   late final MapController _mapController;
 
   @override
@@ -27,18 +38,15 @@ class _MapaWidgetState extends State<MapaWidget> {
     super.dispose();
   }
 
-  void _zoomIn() {
-    final currentZoom = _mapController.camera.zoom;
-    _mapController.move(_mapController.camera.center, currentZoom + 1);
-  }
-
-  void _zoomOut() {
-    final currentZoom = _mapController.camera.zoom;
-    _mapController.move(_mapController.camera.center, currentZoom - 1);
-  }
+  void _zoom(double delta) => _mapController.move(
+    _mapController.camera.center,
+    _mapController.camera.zoom + delta,
+  );
 
   @override
   Widget build(BuildContext context) {
+    final sel = widget.sensorSeleccionado;
+
     return Container(
       width: double.infinity,
       height: 300,
@@ -60,114 +68,90 @@ class _MapaWidgetState extends State<MapaWidget> {
             FlutterMap(
               mapController: _mapController,
               options: const MapOptions(
-                initialCenter: HeatmapWidget.centroValledupar,
+                initialCenter: _centro,
                 initialZoom: 13.2,
                 interactionOptions: InteractionOptions(
-                  flags: InteractiveFlag.drag |
+                  flags:
+                      InteractiveFlag.drag |
                       InteractiveFlag.pinchZoom |
                       InteractiveFlag.doubleTapZoom,
                 ),
               ),
               children: [
                 TileLayer(
-                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                  userAgentPackageName: 'com.example.app',
+                  urlTemplate:
+                      'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',
+                  subdomains: const ['a', 'b', 'c'],
+                  userAgentPackageName: 'com.calidadaire.valledupar',
+                  maxZoom: 19,
                 ),
-                CircleLayer(
-                  circles: HeatmapWidget.sensores
-                      .map(
-                        (sensor) => CircleMarker(
-                          point: sensor.posicion,
-                          radius: sensor.radio,
-                          useRadiusInMeter: true,
-                          color: sensor.color.withValues(alpha: 0.14),
-                          borderColor: sensor.color.withValues(alpha: 0.35),
-                          borderStrokeWidth: 1,
-                        ),
-                      )
-                      .toList(),
-                ),
+                // Círculo de área alrededor del punto seleccionado
+                if (sel != null)
+                  CircleLayer(
+                    circles: [
+                      CircleMarker(
+                        point: sel.posicion,
+                        radius: 300,
+                        useRadiusInMeter: true,
+                        color: sel.colorEstado.withValues(alpha: 0.15),
+                        borderColor: sel.colorEstado.withValues(alpha: 0.50),
+                        borderStrokeWidth: 1.5,
+                      ),
+                    ],
+                  ),
+                // Puntos de medición
                 MarkerLayer(
-                  markers: HeatmapWidget.sensores
+                  markers: widget.sensores
                       .map(
-                        (sensor) => Marker(
-                          point: sensor.posicion,
-                          width: 90,
-                          height: 52,
+                        (s) => Marker(
+                          point: s.posicion,
+                          width: 100,
+                          height: 56,
                           alignment: Alignment.topCenter,
-                          child: _MarcadorSensor(sensor: sensor),
+                          child: _MarcadorPunto(
+                            sensor: s,
+                            seleccionado: sel?.id == s.id,
+                            onTap: () => widget.onSensorTap(s),
+                          ),
                         ),
                       )
                       .toList(),
                 ),
               ],
             ),
-            // Container(color: const Color(0x22102027)), // Removido para permitir gestos en el mapa
+
+            // Chip: ubicación
             Positioned(
-              top: 14,
-              left: 14,
-              child: _InfoChip(
+              top: 12,
+              left: 12,
+              child: _Chip(
                 icono: Icons.location_on_outlined,
                 texto: 'Valledupar · Cesar',
               ),
             ),
-            const Positioned(
-              top: 14,
-              right: 14,
-              child: _EstadoChip(texto: '3 sensores activos'),
+
+            // Chip: puntos medidos (concepto correcto)
+            Positioned(
+              top: 12,
+              right: 12,
+              child: _Chip(
+                icono: Icons.pin_drop_outlined,
+                texto: '${widget.sensores.length} puntos medidos',
+                fondo: const Color(0xCC103746),
+              ),
             ),
+
             // Botones de zoom
             Positioned(
-              bottom: 80,
-              right: 14,
+              bottom: 16,
+              right: 12,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  _ZoomButton(
-                    icon: Icons.add,
-                    onPressed: _zoomIn,
-                  ),
+                  _ZoomBtn(icono: Icons.add, onTap: () => _zoom(1)),
                   const SizedBox(height: 8),
-                  _ZoomButton(
-                    icon: Icons.remove,
-                    onPressed: _zoomOut,
-                  ),
+                  _ZoomBtn(icono: Icons.remove, onTap: () => _zoom(-1)),
                 ],
-              ),
-            ),
-            Positioned(
-              left: 14,
-              right: 14,
-              bottom: 14,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                decoration: BoxDecoration(
-                  color: const Color(0xCC0B1821),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.08),
-                  ),
-                ),
-                child: const Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _InfoDatoMapa(
-                      etiqueta: 'Baja',
-                      valor: '45',
-                      color: Color(0xFF00C9A7),
-                    ),
-                    _InfoDatoMapa(
-                      etiqueta: 'Media',
-                      valor: '85',
-                      color: Color(0xFFFFC857),
-                    ),
-                    _InfoDatoMapa(
-                      etiqueta: 'Alta',
-                      valor: '152',
-                      color: Color(0xFFFF6B6B),
-                    ),
-                  ],
-                ),
               ),
             ),
           ],
@@ -177,76 +161,108 @@ class _MapaWidgetState extends State<MapaWidget> {
   }
 }
 
-class _MarcadorSensor extends StatelessWidget {
-  final SensorMapa sensor;
+// ── Marcador de punto de medición ─────────────────────────────────────────────
 
-  const _MarcadorSensor({required this.sensor});
+class _MarcadorPunto extends StatelessWidget {
+  final Sensor sensor;
+  final bool seleccionado;
+  final VoidCallback onTap;
+
+  const _MarcadorPunto({
+    required this.sensor,
+    required this.seleccionado,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-      decoration: BoxDecoration(
-        color: const Color(0xEE0B1821),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: sensor.color.withValues(alpha: 0.65)),
-        boxShadow: [
-          BoxShadow(
-            color: sensor.color.withValues(alpha: 0.20),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        decoration: BoxDecoration(
+          color: seleccionado
+              ? sensor.colorEstado.withValues(alpha: 0.22)
+              : const Color(0xEE0B1821),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: sensor.colorEstado.withValues(
+              alpha: seleccionado ? 1.0 : 0.65,
+            ),
+            width: seleccionado ? 2 : 1,
           ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.sensors, size: 13, color: sensor.color),
-              const SizedBox(width: 5),
-              Text(
-                '${sensor.co2}',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
-                ),
+          boxShadow: [
+            BoxShadow(
+              color: sensor.colorEstado.withValues(
+                alpha: seleccionado ? 0.40 : 0.18,
               ),
-            ],
-          ),
-          const SizedBox(height: 2),
-          Text(
-            sensor.nombre,
-            style: const TextStyle(color: Colors.white60, fontSize: 9.5),
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
+              blurRadius: seleccionado ? 16 : 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.pin_drop_outlined,
+                  size: 12,
+                  color: sensor.colorEstado,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  '${sensor.co2.toStringAsFixed(0)} ppm',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 2),
+            Text(
+              sensor.zona,
+              style: const TextStyle(color: Colors.white60, fontSize: 9),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-class _InfoChip extends StatelessWidget {
+// ── Widgets auxiliares ────────────────────────────────────────────────────────
+
+class _Chip extends StatelessWidget {
   final IconData icono;
   final String texto;
+  final Color fondo;
 
-  const _InfoChip({required this.icono, required this.texto});
+  const _Chip({
+    required this.icono,
+    required this.texto,
+    this.fondo = const Color(0xCC0B1821),
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: const Color(0xCC0B1821),
-        borderRadius: BorderRadius.circular(12),
+        color: fondo,
+        borderRadius: BorderRadius.circular(10),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icono, size: 14, color: const Color(0xFF00C9A7)),
-          const SizedBox(width: 6),
+          Icon(icono, size: 13, color: const Color(0xFF00C9A7)),
+          const SizedBox(width: 5),
           Text(
             texto,
             style: const TextStyle(
@@ -261,103 +277,24 @@ class _InfoChip extends StatelessWidget {
   }
 }
 
-class _EstadoChip extends StatelessWidget {
-  final String texto;
-
-  const _EstadoChip({required this.texto});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: const Color(0xCC103746),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Text(
-        texto,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
-  }
-}
-
-class _InfoDatoMapa extends StatelessWidget {
-  final String etiqueta;
-  final String valor;
-  final Color color;
-
-  const _InfoDatoMapa({
-    required this.etiqueta,
-    required this.valor,
-    required this.color,
-  });
+class _ZoomBtn extends StatelessWidget {
+  final IconData icono;
+  final VoidCallback onTap;
+  const _ZoomBtn({required this.icono, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 10,
-          height: 10,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 38,
+        height: 38,
+        decoration: BoxDecoration(
+          color: const Color(0xCC0B1821),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
         ),
-        const SizedBox(height: 6),
-        Text(
-          valor,
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            fontSize: 13,
-          ),
-        ),
-        Text(
-          etiqueta,
-          style: const TextStyle(color: Colors.white60, fontSize: 11),
-        ),
-      ],
-    );
-  }
-}
-
-class _ZoomButton extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback onPressed;
-
-  const _ZoomButton({
-    required this.icon,
-    required this.onPressed,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 40,
-      height: 40,
-      decoration: BoxDecoration(
-        color: const Color(0xCC0B1821),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.08),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.20),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: IconButton(
-        onPressed: onPressed,
-        icon: Icon(icon, size: 20, color: Colors.white),
-        padding: EdgeInsets.zero,
-        constraints: const BoxConstraints(),
+        child: Icon(icono, color: Colors.white, size: 20),
       ),
     );
   }
