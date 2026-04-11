@@ -56,7 +56,9 @@ class SensorServicio {
     ),
   ];
 
-  // Alias para compatibilidad con código existente
+  // Alias mantenido por compatibilidad — preferir usar [mediciones] directamente
+  // ignore: deprecated_member_use_from_same_package
+  @Deprecated('Usar SensorServicio.mediciones directamente')
   static List<Sensor> get sensores => mediciones;
 
   // ── Promedio de todos los puntos medidos ──────────────────────────────────
