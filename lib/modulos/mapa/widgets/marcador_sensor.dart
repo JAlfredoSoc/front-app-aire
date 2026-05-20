@@ -17,6 +17,8 @@ class MarcadorSensor extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
@@ -25,7 +27,7 @@ class MarcadorSensor extends StatelessWidget {
         decoration: BoxDecoration(
           color: seleccionado
               ? sensor.colorEstado.withValues(alpha: 0.25)
-              : const Color(0xEE0B1821),
+              : (isDark ? const Color(0xEE0B1821) : Colors.black.withValues(alpha: 0.06)),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: sensor.colorEstado.withValues(
@@ -33,7 +35,7 @@ class MarcadorSensor extends StatelessWidget {
             ),
             width: seleccionado ? 2 : 1,
           ),
-          boxShadow: [
+          boxShadow: isDark ? [
             BoxShadow(
               color: sensor.colorEstado.withValues(
                 alpha: seleccionado ? 0.40 : 0.20,
@@ -41,7 +43,7 @@ class MarcadorSensor extends StatelessWidget {
               blurRadius: seleccionado ? 16 : 8,
               offset: const Offset(0, 4),
             ),
-          ],
+          ] : [],
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -57,8 +59,8 @@ class MarcadorSensor extends StatelessWidget {
                 const SizedBox(width: 4),
                 Text(
                   '${sensor.co2.toStringAsFixed(0)} ppm',
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: theme.colorScheme.onSurface,
                     fontWeight: FontWeight.bold,
                     fontSize: 12,
                   ),
@@ -68,7 +70,10 @@ class MarcadorSensor extends StatelessWidget {
             const SizedBox(height: 2),
             Text(
               sensor.zona,
-              style: const TextStyle(color: Colors.white60, fontSize: 9),
+              style: TextStyle(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                fontSize: 9,
+              ),
               overflow: TextOverflow.ellipsis,
             ),
           ],

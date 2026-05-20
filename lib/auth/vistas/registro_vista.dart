@@ -6,19 +6,22 @@ class RegistroVista extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    final gradientColors = isDark
+        ? [const Color(0xFF0F2027), const Color(0xFF203A43), const Color(0xFF2C5364)]
+        : [const Color(0xFFF5FBFC), const Color(0xFFE8F4F8), const Color(0xFFD0EBF5)];
+
     return Scaffold(
-      backgroundColor: const Color(0xFF0F2027),
+      backgroundColor: isDark ? const Color(0xFF0F2027) : const Color(0xFFF5FBFC),
       body: SizedBox.expand(
         child: Container(
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [
-                Color(0xFF0F2027),
-                Color(0xFF203A43),
-                Color(0xFF2C5364),
-              ],
+              colors: gradientColors,
             ),
           ),
           child: const SafeArea(child: FormularioRegistro()),

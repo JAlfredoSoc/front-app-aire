@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/tema/colores.dart';
 
 class InputTexto extends StatelessWidget {
   final TextEditingController controller;
@@ -14,30 +15,38 @@ class InputTexto extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return TextField(
       controller: controller,
       obscureText: esPassword,
-      style: const TextStyle(
-        color: Colors.white,
+      style: TextStyle(
+        color: theme.colorScheme.onSurface,
         fontSize: 15,
       ),
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: const TextStyle(color: Colors.white54),
+        hintStyle: TextStyle(
+          color: theme.colorScheme.onSurface.withValues(alpha: 0.54),
+        ),
         filled: true,
-        fillColor: Colors.white.withValues(alpha: 0.10),
+        fillColor: isDark
+            ? Colors.white.withValues(alpha: 0.10)
+            : Colors.black.withValues(alpha: 0.05),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 16,
           vertical: 18,
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: Colors.white12),
+          borderSide: BorderSide(
+            color: isDark ? Colors.white12 : Colors.black12,
+          ),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
           borderSide: const BorderSide(
-            color: Color(0xFF00C9A7),
+            color: AppColores.verde,
             width: 1.2,
           ),
         ),

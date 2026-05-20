@@ -1,68 +1,55 @@
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:flutter/foundation.dart';
 import 'package:latlong2/latlong.dart';
 import '../modelos/sensor.dart';
 
 /// Servicio de mediciones de calidad del aire.
-/// Cada entrada representa un punto donde el sensor físico tomó una lectura.
-/// Para conectar Firebase o API REST, solo reemplaza [mediciones] — la UI no cambia.
+/// Conecta el Frontend con el Backend FastAPI.
 class SensorServicio {
   SensorServicio._();
 
-  // ── Historial de mediciones (mock fijo, sin Timer ni Stream) ──────────────
-  static final List<Sensor> mediciones = [
-    Sensor(
-      id: 'centro',
-      zona: 'Centro Histórico',
-      posicion: const LatLng(10.4637, -73.2528),
-      co2: 412,
-      temperatura: 27,
-      pm25: 18,
-      estado: EstadoAire.buena,
-    ),
-    Sensor(
-      id: 'novalito',
-      zona: 'Novalito',
-      posicion: const LatLng(10.4686, -73.2622),
-      co2: 680,
-      temperatura: 29,
-      pm25: 36,
-      estado: EstadoAire.moderada,
-    ),
-    Sensor(
-      id: 'nevada',
-      zona: 'La Nevada',
-      posicion: const LatLng(10.4552, -73.2465),
-      co2: 950,
-      temperatura: 31,
-      pm25: 58,
-      estado: EstadoAire.alta,
-    ),
-    Sensor(
-      id: 'sicarare',
-      zona: 'Sicarare',
-      posicion: const LatLng(10.4720, -73.2480),
-      co2: 520,
-      temperatura: 28,
-      pm25: 28,
-      estado: EstadoAire.moderada,
-    ),
-    Sensor(
-      id: 'villa_del_rio',
-      zona: 'Villa del Río',
-      posicion: const LatLng(10.4580, -73.2600),
-      co2: 380,
-      temperatura: 26,
-      pm25: 14,
-      estado: EstadoAire.buena,
-    ),
-  ];
+  // URL del backend (10.0.2.2 es el alias para localhost en el emulador Android)
+  static String get baseUrl {
+    if (kIsWeb) return 'http://localhost:8000';
+    return 'http://10.0.2.2:8000';
+  }
 
-  // Alias mantenido por compatibilidad — preferir usar [mediciones] directamente
-  // ignore: deprecated_member_use_from_same_package
-  @Deprecated('Usar SensorServicio.mediciones directamente')
-  static List<Sensor> get sensores => mediciones;
+  /// Caché local de las últimas mediciones obtenidas
+  static List<Sensor> mediciones = [];
+
+  /// Obtiene la lista de sensores desde el API
+  static Future<List<Sensor>> obtenerTodos() async {
+    try {
+      final response = await http.get(Uri.parse('$baseUrl/api/sensores'));
+      
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        mediciones = data.map((json) => Sensor.fromMap(json)).toList();
+        return mediciones;
+      } else {
+        throw Exception('Fallo al cargar sensores: ${response.statusCode}');
+      }
+    } catch (e) {
+      debugPrint('Error en SensorServicio: $e');
+      return mediciones;
+    }
+  }
 
   // ── Promedio de todos los puntos medidos ──────────────────────────────────
   static Sensor get promedio {
+    if (mediciones.isEmpty) {
+      return const Sensor(
+        id: 'cargando',
+        zona: 'Conectando...',
+        posicion: LatLng(10.4631, -73.2532),
+        co2: 0,
+        temperatura: 0,
+        pm25: 0,
+        estado: EstadoAire.buena,
+      );
+    }
+
     final n = mediciones.length;
     final co2 = mediciones.map((s) => s.co2).reduce((a, b) => a + b) / n;
     final temp =
@@ -89,29 +76,16 @@ class SensorServicio {
     );
   }
 
-  // ── Alertas del historial ─────────────────────────────────────────────────
-  static const List<AlertaMedicion> alertas = [
-    AlertaMedicion(
-      zona: 'La Nevada',
-      mensaje: 'Alta contaminación detectada (CO₂: 950 ppm)',
-      nivel: EstadoAire.alta,
-    ),
-    AlertaMedicion(
-      zona: 'Novalito',
-      mensaje: 'Nivel moderado de PM2.5 (36 µg/m³)',
-      nivel: EstadoAire.moderada,
-    ),
-    AlertaMedicion(
-      zona: 'Sicarare',
-      mensaje: 'Temperatura elevada: 28 °C',
-      nivel: EstadoAire.moderada,
-    ),
-    AlertaMedicion(
-      zona: 'Centro Histórico',
-      mensaje: 'Calidad del aire en niveles óptimos',
-      nivel: EstadoAire.buena,
-    ),
-  ];
+  // ── Alertas del historial (Podrían venir del backend también) ──────────────
+  static List<AlertaMedicion> get alertas {
+    return mediciones.where((s) => s.estado != EstadoAire.buena).map((s) {
+      return AlertaMedicion(
+        zona: s.zona,
+        mensaje: 'Calidad: ${s.etiquetaEstado} (CO₂: ${s.co2.toInt()} ppm)',
+        nivel: s.estado,
+      );
+    }).toList();
+  }
 }
 
 /// Alerta generada a partir de una medición

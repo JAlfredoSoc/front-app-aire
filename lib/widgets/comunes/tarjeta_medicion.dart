@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../modelos/sensor.dart';
+import '../../core/tema/colores.dart';
 import 'chip_estado.dart';
 import 'indicador_dato.dart';
 
@@ -21,6 +22,7 @@ class TarjetaMedicion extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -49,16 +51,16 @@ class TarjetaMedicion extends StatelessWidget {
                   children: [
                     Text(
                       sensor.zona,
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: theme.colorScheme.onSurface,
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
                     Text(
                       etiquetaSecundaria,
-                      style: const TextStyle(
-                        color: Colors.white54,
+                      style: TextStyle(
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.54),
                         fontSize: 11,
                       ),
                     ),
@@ -75,21 +77,21 @@ class TarjetaMedicion extends StatelessWidget {
                 icono: Icons.co2_rounded,
                 etiqueta: 'CO₂',
                 valor: '${sensor.co2.toStringAsFixed(0)} ppm',
-                color: const Color(0xFF00C9A7),
+                color: AppColores.verde,
               ),
               const SizedBox(width: 8),
               IndicadorDato(
                 icono: Icons.blur_on_rounded,
                 etiqueta: 'PM2.5',
                 valor: '${sensor.pm25.toStringAsFixed(1)} µg/m³',
-                color: const Color(0xFFFFC857),
+                color: AppColores.amarillo,
               ),
               const SizedBox(width: 8),
               IndicadorDato(
                 icono: Icons.thermostat_rounded,
                 etiqueta: 'Temp.',
                 valor: '${sensor.temperatura.toStringAsFixed(1)} °C',
-                color: const Color(0xFF7CC6FE),
+                color: AppColores.azul,
               ),
             ],
           ),

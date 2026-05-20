@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/tema/colores.dart';
 
 class ContenedorBase extends StatelessWidget {
   final Widget child;
@@ -12,18 +13,11 @@ class ContenedorBase extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return SizedBox.expand(
       child: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFF0F2027),
-              Color(0xFF203A43),
-              Color(0xFF2C5364),
-            ],
-          ),
+        decoration: BoxDecoration(
+          gradient: isDark ? AppColores.gradienteFondoOscuro : AppColores.gradienteFondoClaro,
         ),
         child: SafeArea(
           child: Padding(

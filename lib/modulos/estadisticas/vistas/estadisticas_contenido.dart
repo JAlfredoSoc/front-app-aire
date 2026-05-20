@@ -1,21 +1,53 @@
 import 'package:flutter/material.dart';
+import 'package:latlong2/latlong.dart';
 import '../../../modelos/sensor.dart';
 import '../../../servicios/sensor_servicio.dart';
+import '../../../servicios/prediccion_servicio.dart';
 
 /// Contenido puro de estadísticas. Sin header ni navbar — los provee AppShell.
-class EstadisticasContenido extends StatelessWidget {
+class EstadisticasContenido extends StatefulWidget {
   const EstadisticasContenido({super.key});
 
-  static final List<Sensor> _datos = SensorServicio.mediciones;
-  static final Sensor _promedio = SensorServicio.promedio;
-  static Sensor get _maximo => _datos.reduce((a, b) => a.co2 > b.co2 ? a : b);
-  static Sensor get _minimo => _datos.reduce((a, b) => a.co2 < b.co2 ? a : b);
-  static int get _totalBuena =>
-      _datos.where((s) => s.estado == EstadoAire.buena).length;
-  static int get _totalModerada =>
-      _datos.where((s) => s.estado == EstadoAire.moderada).length;
-  static int get _totalAlta =>
-      _datos.where((s) => s.estado == EstadoAire.alta).length;
+  @override
+  State<EstadisticasContenido> createState() => _EstadisticasContenidoState();
+}
+
+class _EstadisticasContenidoState extends State<EstadisticasContenido> {
+  List<Sensor> _datos = [];
+  Map<String, dynamic> _statsIA = {'efectividad_ia': 0.0, 'total_predicciones': 0};
+  bool _cargando = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarDatos();
+  }
+
+  Future<void> _cargarDatos() async {
+    final datos = await SensorServicio.obtenerTodos();
+    final stats = await PrediccionServicio.obtenerEstadisticasGlobales();
+    
+    if (mounted) {
+      setState(() {
+        _datos = datos;
+        _statsIA = stats;
+        _cargando = false;
+      });
+    }
+  }
+
+  Sensor get _promedio => SensorServicio.promedio;
+  Sensor get _maximo => _datos.isNotEmpty 
+      ? _datos.reduce((a, b) => a.co2 > b.co2 ? a : b)
+      : Sensor(id: '0', zona: '-', posicion: const LatLng(0,0), co2: 0, temperatura: 0, pm25: 0, estado: EstadoAire.buena);
+  
+  Sensor get _minimo => _datos.isNotEmpty 
+      ? _datos.reduce((a, b) => a.co2 < b.co2 ? a : b)
+      : Sensor(id: '0', zona: '-', posicion: const LatLng(0,0), co2: 0, temperatura: 0, pm25: 0, estado: EstadoAire.buena);
+
+  int get _totalBuena => _datos.where((s) => s.estado == EstadoAire.buena).length;
+  int get _totalModerada => _datos.where((s) => s.estado == EstadoAire.moderada).length;
+  int get _totalAlta => _datos.where((s) => s.estado == EstadoAire.alta).length;
 
   static const List<_PuntoTendencia> _tendencia = [
     _PuntoTendencia('6am', 380),
@@ -28,63 +60,82 @@ class EstadisticasContenido extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
-      physics: const BouncingScrollPhysics(),
-      children: [
-        _TarjetaResumen(promedio: _promedio),
-        const SizedBox(height: 16),
-        _SeccionTitulo(
-          icono: Icons.show_chart_rounded,
-          titulo: 'Tendencia del día',
-          color: const Color(0xFF7CC6FE),
-        ),
-        const SizedBox(height: 10),
-        _TarjetaTendencia(puntos: _tendencia),
-        const SizedBox(height: 16),
-        _SeccionTitulo(
-          icono: Icons.compare_arrows_rounded,
-          titulo: 'Máximo y mínimo registrado',
-          color: const Color(0xFFFFC857),
-        ),
-        const SizedBox(height: 10),
-        Row(
-          children: [
-            Expanded(child: _TarjetaExtremo(sensor: _maximo, esMaximo: true)),
-            const SizedBox(width: 12),
-            Expanded(child: _TarjetaExtremo(sensor: _minimo, esMaximo: false)),
-          ],
-        ),
-        const SizedBox(height: 16),
-        _SeccionTitulo(
-          icono: Icons.pin_drop_outlined,
-          titulo: 'Promedio por zonas',
-          color: const Color(0xFF00C9A7),
-        ),
-        const SizedBox(height: 10),
-        ..._datos.map((s) => _FilaZona(sensor: s)),
-        const SizedBox(height: 16),
-        _SeccionTitulo(
-          icono: Icons.donut_small_rounded,
-          titulo: 'Distribución de calidad',
-          color: const Color(0xFF00C9A7),
-        ),
-        const SizedBox(height: 10),
-        _TarjetaDistribucion(
-          buena: _totalBuena,
-          moderada: _totalModerada,
-          alta: _totalAlta,
-          total: _datos.length,
-        ),
-        const SizedBox(height: 16),
-        _SeccionTitulo(
-          icono: Icons.tips_and_updates_outlined,
-          titulo: 'Recomendaciones',
-          color: const Color(0xFF7CC6FE),
-        ),
-        const SizedBox(height: 10),
-        const _TarjetaConsejos(),
-      ],
+    if (_cargando && _datos.isEmpty) {
+      return const Center(
+        child: CircularProgressIndicator(color: Color(0xFF00C9A7)),
+      );
+    }
+    
+    return RefreshIndicator(
+      onRefresh: _cargarDatos,
+      color: const Color(0xFF00C9A7),
+      backgroundColor: const Color(0xFF1A1F25),
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+        physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+        children: [
+          _TarjetaResumen(promedio: _promedio),
+          const SizedBox(height: 16),
+          _SeccionTitulo(
+            icono: Icons.psychology_outlined,
+            titulo: 'Rendimiento de la IA',
+            color: const Color(0xFF9C27B0),
+          ),
+          const SizedBox(height: 10),
+          _TarjetaIARendimiento(stats: _statsIA),
+          const SizedBox(height: 16),
+          _SeccionTitulo(
+            icono: Icons.show_chart_rounded,
+            titulo: 'Tendencia del día',
+            color: const Color(0xFF7CC6FE),
+          ),
+          const SizedBox(height: 10),
+          _TarjetaTendencia(puntos: _tendencia),
+          const SizedBox(height: 16),
+          _SeccionTitulo(
+            icono: Icons.compare_arrows_rounded,
+            titulo: 'Máximo y mínimo registrado',
+            color: const Color(0xFFFFC857),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(child: _TarjetaExtremo(sensor: _maximo, esMaximo: true)),
+              const SizedBox(width: 12),
+              Expanded(child: _TarjetaExtremo(sensor: _minimo, esMaximo: false)),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _SeccionTitulo(
+            icono: Icons.pin_drop_outlined,
+            titulo: 'Promedio por zonas',
+            color: const Color(0xFF00C9A7),
+          ),
+          const SizedBox(height: 10),
+          ..._datos.map((s) => _FilaZona(sensor: s)),
+          const SizedBox(height: 16),
+          _SeccionTitulo(
+            icono: Icons.donut_small_rounded,
+            titulo: 'Distribución de calidad',
+            color: const Color(0xFF00C9A7),
+          ),
+          const SizedBox(height: 10),
+          _TarjetaDistribucion(
+            buena: _totalBuena,
+            moderada: _totalModerada,
+            alta: _totalAlta,
+            total: _datos.length,
+          ),
+          const SizedBox(height: 16),
+          _SeccionTitulo(
+            icono: Icons.tips_and_updates_outlined,
+            titulo: 'Recomendaciones',
+            color: const Color(0xFF7CC6FE),
+          ),
+          const SizedBox(height: 10),
+          const _TarjetaConsejos(),
+        ],
+      ),
     );
   }
 }
@@ -97,13 +148,17 @@ class _TarjetaResumen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
             promedio.colorEstado.withValues(alpha: 0.18),
-            Colors.white.withValues(alpha: 0.05),
+            isDark 
+                ? Colors.white.withValues(alpha: 0.05)
+                : Colors.transparent,
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -130,21 +185,24 @@ class _TarjetaResumen extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       'Resumen general',
                       style: TextStyle(
-                        color: Colors.white,
+                        color: theme.colorScheme.onSurface,
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
                     Text(
                       'Promedio de todos los puntos',
-                      style: TextStyle(color: Colors.white54, fontSize: 11),
+                      style: TextStyle(
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.54),
+                        fontSize: 11,
+                      ),
                     ),
                   ],
                 ),
@@ -197,6 +255,7 @@ class _DatoResumen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Expanded(
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
@@ -212,15 +271,18 @@ class _DatoResumen extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               valor,
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: theme.colorScheme.onSurface,
                 fontSize: 12,
                 fontWeight: FontWeight.bold,
               ),
             ),
             Text(
               etiqueta,
-              style: const TextStyle(color: Colors.white54, fontSize: 10),
+              style: TextStyle(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.54),
+                fontSize: 10,
+              ),
             ),
           ],
         ),
@@ -237,6 +299,8 @@ class _TarjetaTendencia extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final maxVal = puntos.map((p) => p.valor).reduce((a, b) => a > b ? a : b);
     final minVal = puntos.map((p) => p.valor).reduce((a, b) => a < b ? a : b);
     final subio = puntos.last.valor > puntos[puntos.length - 2].valor;
@@ -244,9 +308,22 @@ class _TarjetaTendencia extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.055),
+        color: isDark 
+            ? Colors.white.withValues(alpha: 0.055)
+            : Colors.transparent,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.09)),
+        border: Border.all(
+          color: isDark 
+              ? Colors.white.withValues(alpha: 0.09)
+              : Colors.black.withValues(alpha: 0.05),
+        ),
+        boxShadow: isDark ? [] : [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -316,8 +393,8 @@ class _TarjetaTendencia extends StatelessWidget {
                         const SizedBox(height: 5),
                         Text(
                           p.hora,
-                          style: const TextStyle(
-                            color: Colors.white54,
+                          style: TextStyle(
+                            color: theme.colorScheme.onSurface.withValues(alpha: 0.54),
                             fontSize: 9,
                           ),
                         ),
@@ -343,6 +420,7 @@ class _TarjetaExtremo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final color = esMaximo ? const Color(0xFFFF6B6B) : const Color(0xFF00C9A7);
     return Container(
       padding: const EdgeInsets.all(14),
@@ -377,8 +455,8 @@ class _TarjetaExtremo extends StatelessWidget {
           const SizedBox(height: 10),
           Text(
             '${sensor.co2.toStringAsFixed(0)} ppm',
-            style: const TextStyle(
-              color: Colors.white,
+            style: TextStyle(
+              color: theme.colorScheme.onSurface,
               fontSize: 20,
               fontWeight: FontWeight.bold,
             ),
@@ -386,7 +464,10 @@ class _TarjetaExtremo extends StatelessWidget {
           const SizedBox(height: 3),
           Text(
             sensor.zona,
-            style: const TextStyle(color: Colors.white54, fontSize: 11),
+            style: TextStyle(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.54),
+              fontSize: 11,
+            ),
             overflow: TextOverflow.ellipsis,
           ),
         ],
@@ -401,13 +482,21 @@ class _FilaZona extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.055),
+        color: isDark 
+            ? Colors.white.withValues(alpha: 0.055)
+            : Colors.black.withValues(alpha: 0.055),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        border: Border.all(
+          color: isDark 
+              ? Colors.white.withValues(alpha: 0.08)
+              : Colors.black.withValues(alpha: 0.08),
+        ),
       ),
       child: Row(
         children: [
@@ -423,8 +512,8 @@ class _FilaZona extends StatelessWidget {
           Expanded(
             child: Text(
               sensor.zona,
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: theme.colorScheme.onSurface,
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
               ),
@@ -444,7 +533,7 @@ class _FilaZona extends StatelessWidget {
           ),
           const SizedBox(width: 10),
           Text(
-            '${sensor.co2.toStringAsFixed(0)}',
+            sensor.co2.toStringAsFixed(0),
             style: TextStyle(
               color: sensor.colorEstado,
               fontSize: 12,
@@ -452,9 +541,12 @@ class _FilaZona extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 3),
-          const Text(
+          Text(
             'ppm',
-            style: TextStyle(color: Colors.white38, fontSize: 10),
+            style: TextStyle(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.38),
+              fontSize: 10,
+            ),
           ),
         ],
       ),
@@ -473,12 +565,27 @@ class _TarjetaDistribucion extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.055),
+        color: isDark 
+            ? Colors.white.withValues(alpha: 0.055)
+            : Colors.transparent,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.09)),
+        border: Border.all(
+          color: isDark 
+              ? Colors.white.withValues(alpha: 0.09)
+              : Colors.black.withValues(alpha: 0.05),
+        ),
+        boxShadow: isDark ? [] : [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: Column(
         children: [
@@ -550,6 +657,7 @@ class _ItemDist extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final pct = ((cantidad / total) * 100).round();
     return Column(
       children: [
@@ -573,13 +681,19 @@ class _ItemDist extends StatelessWidget {
             const SizedBox(width: 4),
             Text(
               etiqueta,
-              style: const TextStyle(color: Colors.white60, fontSize: 11),
+              style: TextStyle(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                fontSize: 11,
+              ),
             ),
           ],
         ),
         Text(
           '$cantidad zona${cantidad != 1 ? 's' : ''}',
-          style: const TextStyle(color: Colors.white38, fontSize: 10),
+          style: TextStyle(
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.38),
+            fontSize: 10,
+          ),
         ),
       ],
     );
@@ -618,12 +732,27 @@ class _TarjetaConsejos extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.055),
+        color: isDark 
+            ? Colors.white.withValues(alpha: 0.055)
+            : Colors.transparent,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.09)),
+        border: Border.all(
+          color: isDark 
+              ? Colors.white.withValues(alpha: 0.09)
+              : Colors.black.withValues(alpha: 0.05),
+        ),
+        boxShadow: isDark ? [] : [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: Column(
         children: _items
@@ -658,8 +787,8 @@ class _TarjetaConsejos extends StatelessWidget {
                           const SizedBox(height: 2),
                           Text(
                             c.$4,
-                            style: const TextStyle(
-                              color: Colors.white60,
+                            style: TextStyle(
+                              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                               fontSize: 12,
                               height: 1.4,
                             ),
@@ -691,19 +820,113 @@ class _SeccionTitulo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Row(
       children: [
         Icon(icono, color: color, size: 16),
         const SizedBox(width: 7),
         Text(
           titulo,
-          style: const TextStyle(
-            color: Colors.white,
+          style: TextStyle(
+            color: theme.colorScheme.onSurface,
             fontSize: 15,
             fontWeight: FontWeight.w700,
           ),
         ),
       ],
+    );
+  }
+}
+
+// ── Tarjeta de Rendimiento IA ───────────────────────────────────────────────
+
+class _TarjetaIARendimiento extends StatelessWidget {
+  final Map<String, dynamic> stats;
+  const _TarjetaIARendimiento({required this.stats});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final efectividad = stats['efectividad_ia'] ?? 0.0;
+    final total = stats['total_predicciones'] ?? 0;
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFF9C27B0).withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFF9C27B0).withValues(alpha: 0.20)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Efectividad del Entrenamiento',
+                  style: TextStyle(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.54),
+                    fontSize: 11,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${efectividad is double ? efectividad.toStringAsFixed(1) : efectividad}%',
+                  style: TextStyle(
+                    color: isDark ? const Color(0xFFE1BEE7) : const Color(0xFF7B1FA2),
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  efectividad > 90 ? 'Excelente precisión dinámica' : 'Modelo en aprendizaje continuo',
+                  style: TextStyle(
+                    color: const Color(0xFF9C27B0).withValues(alpha: 0.8),
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            width: 1,
+            height: 40,
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.1),
+          ),
+          Expanded(
+            child: Column(
+              children: [
+                Text(
+                  'Predicciones Totales',
+                  style: TextStyle(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.54),
+                    fontSize: 11,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '$total',
+                  style: TextStyle(
+                    color: theme.colorScheme.onSurface,
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  'Desde el mapa',
+                  style: TextStyle(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.38),
+                    fontSize: 10,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

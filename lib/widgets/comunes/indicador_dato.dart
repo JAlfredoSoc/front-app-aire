@@ -18,6 +18,7 @@ class IndicadorDato extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Expanded(
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
@@ -33,15 +34,18 @@ class IndicadorDato extends StatelessWidget {
             const SizedBox(height: 5),
             Text(
               valor,
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: theme.colorScheme.onSurface,
                 fontSize: 12,
                 fontWeight: FontWeight.bold,
               ),
             ),
             Text(
               etiqueta,
-              style: const TextStyle(color: Colors.white54, fontSize: 10),
+              style: TextStyle(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                fontSize: 10,
+              ),
             ),
           ],
         ),

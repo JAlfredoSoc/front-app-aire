@@ -1,7 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../modelos/alerta.dart' as alerta_model;
+import '../../servicios/alerta_servicio.dart';
+import '../../servicios/auth_servicio.dart';
+import '../../servicios/tema_servicio.dart';
+import '../../servicios/biometrico_servicio.dart';
+import '../../auth/widgets/biometrico_dialogo.dart';
 import '../../modulos/educacion/vistas/educacion_contenido.dart';
 import '../../modulos/estadisticas/vistas/estadisticas_contenido.dart';
 import '../../modulos/mapa/vistas/mapa_contenido.dart';
+import '../../servicios/prediccion_servicio.dart';
+import '../../main.dart' show AirMonitorAppState;
+import '../../core/tema/colores.dart';
 
 /// Shell principal de la app.
 /// Mantiene el header y la navbar SIEMPRE visibles.
@@ -33,8 +43,9 @@ class _AppShellState extends State<AppShell> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
-      backgroundColor: const Color(0xFF0F2027),
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
         child: Column(
           children: [
@@ -86,10 +97,45 @@ class _ContenidoEstadisticas extends StatelessWidget {
 
 // ── Header global ─────────────────────────────────────────────────────────────
 
-class _Header extends StatelessWidget {
+class _Header extends StatefulWidget {
   final String titulo;
   final String subtitulo;
   const _Header({required this.titulo, required this.subtitulo});
+
+  @override
+  State<_Header> createState() => _HeaderState();
+}
+
+class _HeaderState extends State<_Header> {
+  bool _esOscuro = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarEstadoTema();
+  }
+
+  Future<void> _cargarEstadoTema() async {
+    final oscuro = await TemaServicio.esOscuro();
+    if (mounted) {
+      setState(() {
+        _esOscuro = oscuro;
+      });
+    }
+  }
+
+  Future<void> _alternarTema() async {
+    final nuevoEstado = !_esOscuro;
+    await TemaServicio.cambiarTema(nuevoEstado);
+    if (mounted) {
+      setState(() {
+        _esOscuro = nuevoEstado;
+      });
+      // Notificar al AirMonitorApp que el tema cambió
+      final appState = context.findAncestorStateOfType<AirMonitorAppState>();
+      appState?.actualizarTema();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -102,15 +148,15 @@ class _Header extends StatelessWidget {
             child: AnimatedSwitcher(
               duration: const Duration(milliseconds: 200),
               child: Align(
-                key: ValueKey(titulo),
+                key: ValueKey(widget.titulo),
                 alignment: Alignment.centerLeft,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      titulo,
-                      style: const TextStyle(
-                        color: Colors.white,
+                      widget.titulo,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurface,
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
                         height: 1.1,
@@ -120,7 +166,7 @@ class _Header extends StatelessWidget {
                     const Text(
                       'Valledupar, Cesar',
                       style: TextStyle(
-                        color: Color(0xFF00C9A7),
+                        color: AppColores.verde,
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
                       ),
@@ -130,11 +176,21 @@ class _Header extends StatelessWidget {
               ),
             ),
           ),
+          // Toggle tema
+          _BotonHeader(
+            icono: _esOscuro ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
+            onTap: _alternarTema,
+          ),
+          const SizedBox(width: 8),
           // Notificaciones
           _BotonHeader(
             icono: Icons.notifications_none_rounded,
-            badge: true,
-            onTap: () => _mostrarNotificaciones(context),
+            badge: AlertaServicio.hayAlertasNuevas,
+            onTap: () {
+              _mostrarNotificaciones(context);
+              // Refrescar UI para quitar el badge
+              if (mounted) setState(() {});
+            },
           ),
           const SizedBox(width: 8),
           // Perfil
@@ -148,6 +204,9 @@ class _Header extends StatelessWidget {
   }
 
   void _mostrarNotificaciones(BuildContext context) {
+    // Marcar alertas como leídas (quita el badge rojo)
+    AlertaServicio.marcarAlertasLeidas();
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -178,20 +237,28 @@ class _BotonHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return GestureDetector(
       onTap: onTap,
       child: Container(
         width: 44,
         height: 44,
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.08),
+          color: isDark 
+              ? Colors.white.withValues(alpha: 0.08)
+              : Colors.black.withValues(alpha: 0.05),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+          border: Border.all(
+            color: isDark 
+                ? Colors.white.withValues(alpha: 0.10)
+                : Colors.black.withValues(alpha: 0.10),
+          ),
         ),
         child: Stack(
           alignment: Alignment.center,
           children: [
-            Icon(icono, color: Colors.white, size: 22),
+            Icon(icono, color: theme.colorScheme.onSurface, size: 22),
             if (badge)
               Positioned(
                 top: 9,
@@ -221,22 +288,28 @@ class _Navbar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return SafeArea(
       top: false,
       child: Container(
         margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
         decoration: BoxDecoration(
-          color: const Color(0xFF112A34),
+          color: isDark ? const Color(0xFF112A34) : Colors.white,
           borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-          boxShadow: [
+          border: Border.all(
+            color: isDark 
+                ? Colors.white.withValues(alpha: 0.08)
+                : Colors.black.withValues(alpha: 0.08),
+          ),
+          boxShadow: isDark ? [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.22),
               blurRadius: 18,
               offset: const Offset(0, 8),
             ),
-          ],
+          ] : [],
         ),
         child: Row(
           children: [
@@ -279,7 +352,8 @@ class _ItemNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = activo ? const Color(0xFF00C9A7) : Colors.white60;
+    final theme = Theme.of(context);
+    final color = activo ? AppColores.verde : theme.colorScheme.onSurface.withValues(alpha: 0.6);
     return Expanded(
       child: GestureDetector(
         onTap: onTap,
@@ -287,7 +361,7 @@ class _ItemNav extends StatelessWidget {
           duration: const Duration(milliseconds: 180),
           padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
-            color: activo ? const Color(0x1400C9A7) : Colors.transparent,
+            color: activo ? AppColores.verde.withValues(alpha: 0.12) : Colors.transparent,
             borderRadius: BorderRadius.circular(16),
           ),
           child: Column(
@@ -319,10 +393,15 @@ class _ModalNotificaciones extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Alertas del polling (backend)
+    final alertas = AlertaServicio.alertas;
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFF112A34),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF112A34) : Colors.white,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
       ),
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
       child: Column(
@@ -334,24 +413,26 @@ class _ModalNotificaciones extends StatelessWidget {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.20),
+                color: isDark 
+                    ? Colors.white.withValues(alpha: 0.20)
+                    : Colors.black.withValues(alpha: 0.20),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
           ),
           const SizedBox(height: 18),
-          const Row(
+          Row(
             children: [
               Icon(
                 Icons.notifications_rounded,
-                color: Color(0xFF00C9A7),
+                color: AppColores.verde,
                 size: 20,
               ),
-              SizedBox(width: 8),
+              const SizedBox(width: 8),
               Text(
                 'Notificaciones',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: theme.colorScheme.onSurface,
                   fontSize: 18,
                   fontWeight: FontWeight.w700,
                 ),
@@ -359,24 +440,30 @@ class _ModalNotificaciones extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-          _ItemAlerta(
-            icono: Icons.warning_rounded,
-            color: const Color(0xFFFF6B6B),
-            zona: 'La Nevada',
-            mensaje: 'Alta contaminación detectada (CO₂: 950 ppm)',
-          ),
-          _ItemAlerta(
-            icono: Icons.info_outline_rounded,
-            color: const Color(0xFFFFC857),
-            zona: 'Novalito',
-            mensaje: 'Nivel moderado de PM2.5 (36 µg/m³)',
-          ),
-          _ItemAlerta(
-            icono: Icons.check_circle_outline_rounded,
-            color: const Color(0xFF00C9A7),
-            zona: 'Centro Histórico',
-            mensaje: 'Calidad del aire en niveles óptimos',
-          ),
+          // Alertas del sistema (backend)
+          if (alertas.isNotEmpty)
+            ...alertas.map((a) => _ItemAlerta(
+                  icono: a.estado == alerta_model.EstadoAire.alta
+                      ? Icons.warning_rounded
+                      : Icons.info_outline_rounded,
+                  color: a.estado == alerta_model.EstadoAire.alta
+                      ? const Color(0xFFFF6B6B)
+                      : const Color(0xFFFFC857),
+                  zona: a.zona,
+                  mensaje: a.mensaje,
+                ))
+          else
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 20),
+              child: Center(
+                child: Text(
+                  'No hay alertas activas en este momento',
+                  style: TextStyle(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -397,6 +484,7 @@ class _ItemAlerta extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(13),
@@ -423,8 +511,8 @@ class _ItemAlerta extends StatelessWidget {
               children: [
                 Text(
                   zona,
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: theme.colorScheme.onSurface,
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
                   ),
@@ -432,7 +520,10 @@ class _ItemAlerta extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   mensaje,
-                  style: const TextStyle(color: Colors.white60, fontSize: 12),
+                  style: TextStyle(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                    fontSize: 12,
+                  ),
                 ),
               ],
             ),
@@ -443,15 +534,147 @@ class _ItemAlerta extends StatelessWidget {
   }
 }
 
-class _ModalPerfil extends StatelessWidget {
+class _ModalPerfil extends StatefulWidget {
   const _ModalPerfil();
 
   @override
+  State<_ModalPerfil> createState() => _ModalPerfilState();
+}
+
+class _ModalPerfilState extends State<_ModalPerfil> {
+  String _nombre = 'Cargando...';
+  String _email = '...';
+  String _ultimaConexion = '...';
+
+  bool _entrenando = false;
+  bool _tieneHuella = false;
+  bool _cargandoHuella = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarPerfil();
+    _verificarHuella();
+  }
+
+  Future<void> _cargarPerfil() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() {
+        _nombre = prefs.getString('user_nombre') ?? 'Usuario';
+        _email = prefs.getString('user_email') ?? 'sin-correo@app.com';
+        _ultimaConexion = _formatearUltimaConexion(
+          prefs.getString('user_ultima_conexion'),
+        );
+      });
+    }
+  }
+
+  String _formatearUltimaConexion(String? isoTimestamp) {
+    if (isoTimestamp == null || isoTimestamp.isEmpty) {
+      return 'No disponible';
+    }
+    try {
+      final fecha = DateTime.parse(isoTimestamp);
+      final ahora = DateTime.now();
+      final diferencia = ahora.difference(fecha);
+
+      if (diferencia.inMinutes < 1) {
+        return 'Hace un momento';
+      } else if (diferencia.inHours < 1) {
+        return 'Hace ${diferencia.inMinutes} min';
+      } else if (diferencia.inDays < 1) {
+        return 'Hoy, ${_formatearHora(fecha)}';
+      } else if (diferencia.inDays == 1) {
+        return 'Ayer, ${_formatearHora(fecha)}';
+      } else {
+        return '${fecha.day}/${fecha.month}/${fecha.year}, ${_formatearHora(fecha)}';
+      }
+    } catch (e) {
+      return 'No disponible';
+    }
+  }
+
+  String _formatearHora(DateTime fecha) {
+    final hora = fecha.hour.toString().padLeft(2, '0');
+    final minuto = fecha.minute.toString().padLeft(2, '0');
+    return '$hora:$minuto';
+  }
+
+  Future<void> _verificarHuella() async {
+    final tieneHuella = await BiometricoServicio.estaHabilitado();
+    if (mounted) {
+      setState(() {
+        _tieneHuella = tieneHuella;
+      });
+    }
+  }
+
+  Future<void> _toggleHuella() async {
+    if (_cargandoHuella) return;
+
+    setState(() => _cargandoHuella = true);
+
+    if (_tieneHuella) {
+      // Deshabilitar huella
+      final uid = await AuthServicio.obtenerUid();
+      if (uid != null && mounted) {
+        final exito = await BiometricoDialogo.mostrarDeshabilitar(
+          context: context,
+          uid: uid,
+        );
+        if (exito && mounted) {
+          setState(() => _tieneHuella = false);
+        }
+      }
+    } else {
+      // Habilitar huella
+      final prefs = await SharedPreferences.getInstance();
+      final accessToken = prefs.getString('jwt_token');
+      final uid = prefs.getString('user_uid');
+
+      if (accessToken != null && uid != null && mounted) {
+        final exito = await BiometricoDialogo.mostrarOfrecimiento(
+          context: context,
+          accessToken: accessToken,
+          uid: uid,
+        );
+        if (exito && mounted) {
+          setState(() => _tieneHuella = true);
+        }
+      }
+    }
+
+    setState(() => _cargandoHuella = false);
+  }
+
+  Future<void> _ejecutarEntrenamiento() async {
+    setState(() => _entrenando = true);
+    final resultado = await PrediccionServicio.entrenarModelo();
+    if (mounted) {
+      setState(() => _entrenando = false);
+      
+      String mensaje = resultado['mensaje'] ?? 'Error al entrenar';
+      if (resultado.containsKey('error')) mensaje = resultado['error'];
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(mensaje),
+          backgroundColor: resultado.containsKey('error') ? Colors.redAccent : const Color(0xFF00C9A7),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFF112A34),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF112A34) : Colors.white,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
       ),
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
       child: Column(
@@ -462,7 +685,9 @@ class _ModalPerfil extends StatelessWidget {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.20),
+                color: isDark 
+                    ? Colors.white.withValues(alpha: 0.20)
+                    : Colors.black.withValues(alpha: 0.20),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -472,62 +697,119 @@ class _ModalPerfil extends StatelessWidget {
             width: 70,
             height: 70,
             decoration: BoxDecoration(
-              color: const Color(0xFF00C9A7).withValues(alpha: 0.15),
+              color: AppColores.verde.withValues(alpha: 0.15),
               shape: BoxShape.circle,
               border: Border.all(
-                color: const Color(0xFF00C9A7).withValues(alpha: 0.40),
+                color: AppColores.verde.withValues(alpha: 0.40),
                 width: 2,
               ),
             ),
-            child: const Icon(
+            child: Icon(
               Icons.person_rounded,
-              color: Color(0xFF00C9A7),
+              color: AppColores.verde,
               size: 34,
             ),
           ),
           const SizedBox(height: 14),
-          const Text(
-            'José Maestre',
+          Text(
+            _nombre,
             style: TextStyle(
-              color: Colors.white,
+              color: theme.colorScheme.onSurface,
               fontSize: 20,
               fontWeight: FontWeight.w700,
             ),
           ),
           const SizedBox(height: 4),
-          const Text(
-            'jose.maestre@correo.com',
-            style: TextStyle(color: Colors.white54, fontSize: 13),
+          Text(
+            _email,
+            style: TextStyle(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+              fontSize: 13,
+            ),
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 24),
+          
+          // --- BOTÓN DE ENTRENAMIENTO IA ---
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _entrenando ? null : _ejecutarEntrenamiento,
+              icon: _entrenando 
+                  ? SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: AppColores.verde))
+                  : Icon(Icons.auto_awesome_rounded, color: AppColores.verde, size: 18),
+              label: Text(
+                _entrenando ? 'Entrenando Cerebro...' : 'Actualizar IA con datos reales',
+                style: TextStyle(color: AppColores.verde, fontSize: 14),
+              ),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                side: BorderSide(color: AppColores.verde.withValues(alpha: 0.3)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // --- BOTÓN DE HUELLA DIGITAL ---
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _cargandoHuella ? null : _toggleHuella,
+              icon: _cargandoHuella
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                  : Icon(
+                      _tieneHuella ? Icons.fingerprint : Icons.fingerprint_outlined,
+                      size: 18,
+                    ),
+              label: Text(
+                _tieneHuella ? 'Desactivar huella digital' : 'Activar huella digital',
+                style: const TextStyle(fontSize: 14),
+              ),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                side: BorderSide(color: theme.colorScheme.primary.withValues(alpha: 0.3)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          
+          Divider(color: isDark ? Colors.white10 : Colors.black12),
+          const SizedBox(height: 12),
 
           // ── Info adicional ──────────────────────────────────────────
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.05),
+              color: isDark 
+                  ? Colors.white.withValues(alpha: 0.05)
+                  : Colors.black.withValues(alpha: 0.05),
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+              border: Border.all(
+                color: isDark 
+                    ? Colors.white.withValues(alpha: 0.08)
+                    : Colors.black.withValues(alpha: 0.08),
+              ),
             ),
-            child: const Column(
+            child: Column(
               children: [
                 _FilaInfoPerfil(
                   icono: Icons.location_on_outlined,
                   texto: 'Valledupar, Cesar',
-                  color: Color(0xFF00C9A7),
+                  color: AppColores.verde,
                 ),
-                SizedBox(height: 10),
+                const SizedBox(height: 10),
                 _FilaInfoPerfil(
                   icono: Icons.access_time_rounded,
-                  texto: 'Última conexión: Hoy, 10:30 AM',
-                  color: Color(0xFF7CC6FE),
+                  texto: 'Última conexión: $_ultimaConexion',
+                  color: AppColores.azul,
                 ),
-                SizedBox(height: 10),
+                const SizedBox(height: 10),
                 _FilaInfoPerfil(
                   icono: Icons.circle,
                   texto: 'Usuario activo',
-                  color: Color(0xFF00C9A7),
+                  color: AppColores.verde,
                   esBadge: true,
                 ),
               ],
@@ -552,32 +834,32 @@ class _ModalPerfil extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             child: TextButton.icon(
-              onPressed: () {
-                Navigator.pop(context);
-                Navigator.pushReplacementNamed(context, '/');
+              onPressed: () async {
+                await AuthServicio.logout();
+                if (context.mounted) {
+                  Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
+                }
               },
-              icon: const Icon(
+              icon: Icon(
                 Icons.logout_rounded,
-                color: Color(0xFFFF6B6B),
+                color: AppColores.rojo,
                 size: 18,
               ),
-              label: const Text(
+              label: Text(
                 'Cerrar sesión',
                 style: TextStyle(
-                  color: Color(0xFFFF6B6B),
+                  color: AppColores.rojo,
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
                 ),
               ),
               style: TextButton.styleFrom(
-                backgroundColor: const Color(
-                  0xFFFF6B6B,
-                ).withValues(alpha: 0.10),
+                backgroundColor: AppColores.rojo.withValues(alpha: 0.10),
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14),
                   side: BorderSide(
-                    color: const Color(0xFFFF6B6B).withValues(alpha: 0.25),
+                    color: AppColores.rojo.withValues(alpha: 0.25),
                   ),
                 ),
               ),
@@ -604,6 +886,7 @@ class _FilaInfoPerfil extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Row(
       children: [
         Icon(icono, color: color, size: esBadge ? 10 : 15),
@@ -611,23 +894,26 @@ class _FilaInfoPerfil extends StatelessWidget {
         Expanded(
           child: Text(
             texto,
-            style: const TextStyle(color: Colors.white70, fontSize: 13),
+            style: TextStyle(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+              fontSize: 13,
+            ),
           ),
         ),
         if (esBadge)
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
             decoration: BoxDecoration(
-              color: const Color(0xFF00C9A7).withValues(alpha: 0.15),
+              color: AppColores.verde.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
-                color: const Color(0xFF00C9A7).withValues(alpha: 0.35),
+                color: AppColores.verde.withValues(alpha: 0.35),
               ),
             ),
-            child: const Text(
+            child: Text(
               'Activo',
               style: TextStyle(
-                color: Color(0xFF00C9A7),
+                color: AppColores.verde,
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
               ),
@@ -645,21 +931,32 @@ class _ChipPerfil extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.07),
+        color: isDark 
+            ? Colors.white.withValues(alpha: 0.07)
+            : Colors.black.withValues(alpha: 0.07),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+        border: Border.all(
+          color: isDark 
+              ? Colors.white.withValues(alpha: 0.10)
+              : Colors.black.withValues(alpha: 0.10),
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icono, color: const Color(0xFF00C9A7), size: 14),
+          Icon(icono, color: AppColores.verde, size: 14),
           const SizedBox(width: 6),
           Text(
             texto,
-            style: const TextStyle(color: Colors.white70, fontSize: 12),
+            style: TextStyle(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+              fontSize: 12,
+            ),
           ),
         ],
       ),

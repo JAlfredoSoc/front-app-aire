@@ -44,16 +44,30 @@ class _Tarjeta extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.055),
+        color: isDark 
+            ? Colors.white.withValues(alpha: 0.055)
+            : Colors.transparent,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.09)),
-        boxShadow: [
+        border: Border.all(
+          color: isDark 
+              ? Colors.white.withValues(alpha: 0.09)
+              : Colors.black.withValues(alpha: 0.05),
+        ),
+        boxShadow: isDark ? [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.14),
             blurRadius: 14,
             offset: const Offset(0, 6),
+          ),
+        ] : [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -82,8 +96,8 @@ class _Tarjeta extends StatelessWidget {
                 const SizedBox(width: 12),
                 Text(
                   titulo,
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: theme.colorScheme.onSurface,
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
                   ),
@@ -107,10 +121,17 @@ class _Parrafo extends StatelessWidget {
   final String texto;
   const _Parrafo(this.texto);
   @override
-  Widget build(BuildContext context) => Text(
-    texto,
-    style: const TextStyle(color: Colors.white70, fontSize: 13, height: 1.55),
-  );
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Text(
+      texto,
+      style: TextStyle(
+        color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+        fontSize: 13,
+        height: 1.55,
+      ),
+    );
+  }
 }
 
 class _Fila extends StatelessWidget {
@@ -120,6 +141,7 @@ class _Fila extends StatelessWidget {
   const _Fila({required this.icono, required this.color, required this.texto});
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.only(bottom: 7),
       child: Row(
@@ -130,8 +152,8 @@ class _Fila extends StatelessWidget {
           Expanded(
             child: Text(
               texto,
-              style: const TextStyle(
-                color: Colors.white70,
+              style: TextStyle(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
                 fontSize: 13,
                 height: 1.4,
               ),
@@ -154,6 +176,7 @@ class _NivelBar extends StatelessWidget {
   });
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Container(
       margin: const EdgeInsets.only(bottom: 7),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
@@ -182,7 +205,10 @@ class _NivelBar extends StatelessWidget {
           ),
           Text(
             rango,
-            style: const TextStyle(color: Colors.white54, fontSize: 12),
+            style: TextStyle(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+              fontSize: 12,
+            ),
           ),
         ],
       ),
@@ -201,6 +227,7 @@ class _ChipPM extends StatelessWidget {
   });
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -230,7 +257,10 @@ class _ChipPM extends StatelessWidget {
           Expanded(
             child: Text(
               descripcion,
-              style: const TextStyle(color: Colors.white70, fontSize: 12),
+              style: TextStyle(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                fontSize: 12,
+              ),
             ),
           ),
         ],
@@ -252,6 +282,7 @@ class _ItemMedicion extends StatelessWidget {
   });
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -267,7 +298,10 @@ class _ItemMedicion extends StatelessWidget {
           Expanded(
             child: Text(
               descripcion,
-              style: const TextStyle(color: Colors.white70, fontSize: 13),
+              style: TextStyle(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                fontSize: 13,
+              ),
             ),
           ),
           Text(
@@ -297,6 +331,7 @@ class _Consejo extends StatelessWidget {
   });
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(13),
@@ -333,8 +368,8 @@ class _Consejo extends StatelessWidget {
                 const SizedBox(height: 3),
                 Text(
                   descripcion,
-                  style: const TextStyle(
-                    color: Colors.white60,
+                  style: TextStyle(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                     fontSize: 12,
                     height: 1.4,
                   ),
@@ -463,6 +498,7 @@ class _TarjetaQueMide extends StatelessWidget {
   const _TarjetaQueMide();
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return _Tarjeta(
       icono: Icons.sensors_rounded,
       titulo: '¿Qué mide esta aplicación?',
@@ -489,10 +525,10 @@ class _TarjetaQueMide extends StatelessWidget {
             color: Color(0xFFFF9F7F),
           ),
           const SizedBox(height: 10),
-          const Text(
+          Text(
             'Escala de calidad del aire',
             style: TextStyle(
-              color: Colors.white60,
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
               fontSize: 12,
               fontWeight: FontWeight.w600,
             ),
